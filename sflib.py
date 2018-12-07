@@ -70,7 +70,7 @@ class SpiderFoot:
 
         try:
             self.info("Re-circuiting TOR...")
-            with Controller.from_port(address=self.opts['_socks2addr'], 
+            with Controller.from_port(address=self.opts['_socks2addr'],
                                       port=self.opts['_torctlport']) as controller:
                 controller.authenticate()
                 controller.signal(Signal.NEWNYM)
@@ -171,7 +171,7 @@ class SpiderFoot:
 
     # Convert supplied raw data into GEXF format (e.g. for Gephi)
     # GEXF produced by PyGEXF doesn't work with SigmaJS because
-    # SJS needs coordinates for each node. 
+    # SJS needs coordinates for each node.
     # flt is a list of event types to include, if not set everything is
     # included.
     def buildGraphGexf(self, root, title, data, flt=[]):
@@ -194,7 +194,7 @@ class SpiderFoot:
                 if dst in root:
                     col = ["255", "0", "0"]
                 graph.addNode(str(ncounter), unicode(dst, errors="replace"),
-                              r=col[0], g=col[1], b=col[2])    
+                              r=col[0], g=col[1], b=col[2])
                 nodelist[dst] = ncounter
 
             if src not in nodelist:
@@ -233,7 +233,7 @@ class SpiderFoot:
                 ncounter = ncounter + 1
                 if dst in root:
                     col = "#f00"
-                ret['nodes'].append({'id': str(ncounter), 
+                ret['nodes'].append({'id': str(ncounter),
                                     'label': unicode(dst, errors="replace"),
                                     'x': random.randint(1,1000),
                                     'y': random.randint(1,1000),
@@ -246,7 +246,7 @@ class SpiderFoot:
                 if src in root:
                     col = "#f00"
                 ncounter = ncounter + 1
-                ret['nodes'].append({'id': str(ncounter), 
+                ret['nodes'].append({'id': str(ncounter),
                                     'label': unicode(src, errors="replace"),
                                     'x': random.randint(1,1000),
                                     'y': random.randint(1,1000),
@@ -256,8 +256,8 @@ class SpiderFoot:
                 nodelist[src] = ncounter
 
             ecounter = ecounter + 1
-            ret['edges'].append({'id': str(ecounter), 
-                                'source': str(nodelist[src]), 
+            ret['edges'].append({'id': str(ecounter),
+                                'source': str(nodelist[src]),
                                 'target': str(nodelist[dst])
             })
 
@@ -957,7 +957,7 @@ class SpiderFoot:
 
     # Fetch a URL, return the response object
     def fetchUrl(self, url, fatal=False, cookies=None, timeout=30,
-                 useragent="SpiderFoot", headers=None, noLog=False, 
+                 useragent="SpiderFoot", headers=None, noLog=False,
                  postData=None, dontMangle=False, sizeLimit=None,
                  headOnly=False):
         result = {
@@ -1136,7 +1136,7 @@ class SpiderFoot:
 
         if attempts == 3:
             return None
-                                
+
         returnResults[seedUrl] = firstPage['content']
         pat = re.compile("(\/search\S+start=\d+.[^\'\"]*sa=N)", re.IGNORECASE)
         matches = re.findall(pat, firstPage['content'])
@@ -1175,6 +1175,101 @@ class SpiderFoot:
                 else:
                     if "name=\"captcha\"" in nextPage['content']:
                         self.error("Google returned a CAPTCHA.", False)
+                        failed = True
+
+                if failed:
+                    self.refreshTorIdent()
+                    attempts += 1
+                    failed = False
+                else:
+                    break
+
+            if attempts == 3:
+                return returnResults
+
+            returnResults[nextUrl] = nextPage['content']
+            pat = re.compile("(\/search\S+start=\d+.[^\'\"]*)", re.IGNORECASE)
+            matches = re.findall(pat, nextPage['content'])
+
+        return returnResults
+
+    def naverIterate(self, searchString, opts=dict()):
+        limit = 10
+        fetches = 0
+        returnResults = dict()
+
+        if 'limit' in opts:
+            limit = opts['limit']
+
+        # We attempt to make the URL look as authentically human as possible
+        seedUrl = u"http://search.naver.com/search.naver?ie=utf8&where=nexearch&query={0}".format(searchString) + \
+                  u"&ie=utf-8&oe=utf-8&aq=t&rls=org.mozilla:en-US:official&client=firefox-a"
+
+        attempts = 0
+        failed = False
+        while attempts < 3:
+            firstPage = self.fetchUrl(seedUrl, timeout=opts['timeout'],
+                                      useragent=opts['useragent'])
+            if firstPage['code'] == "403" or firstPage['code'] == "503":
+                self.error("Naver doesn't like us right now..", False)
+                failed = True
+
+            if firstPage['content'] is None:
+                self.error("Failed to fetch content from Naver.", False)
+                failed = True
+            else:
+                if "name=\"captcha\"" in firstPage['content']:
+                    self.error("Naver returned a CAPTCHA.", False)
+                    failed = True
+
+            if failed:
+                self.refreshTorIdent()
+                attempts += 1
+                failed = False
+            else:
+                break
+
+        if attempts == 3:
+            return None
+
+        returnResults[seedUrl] = firstPage['content']
+        pat = re.compile("(\/search\S+start=\d+.[^\'\"]*sa=N)", re.IGNORECASE)
+        matches = re.findall(pat, firstPage['content'])
+
+        while matches > 0 and fetches < limit:
+            nextUrl = None
+            fetches += 1
+            for match in matches:
+                # Google moves in increments of 10
+                if "start=" + str(fetches * 10) in match:
+                    nextUrl = match.replace("&amp;", "&")
+
+            if nextUrl is None:
+                self.debug("Nothing left to scan for in Naver results.")
+                return returnResults
+            self.info("Next Naver URL: " + nextUrl)
+
+            # Wait for a random number of seconds between fetches
+            if 'nopause' not in opts:
+                pauseSecs = random.randint(4, 15)
+                self.info("Pausing for " + str(pauseSecs))
+                time.sleep(pauseSecs)
+
+            attempts = 0
+            failed = False
+            while attempts < 3:
+                nextPage = self.fetchUrl(u'https://www.naver.com' + nextUrl,
+                                         timeout=opts['timeout'], useragent=opts['useragent'])
+                if nextPage['code'] == "403" or nextPage['code'] == "503":
+                    self.error("Naver doesn't like us right now..", False)
+                    failed = True
+
+                if nextPage['content'] is None:
+                    self.error("Failed to fetch subsequent content from Naver.", False)
+                    failed = True
+                else:
+                    if "name=\"captcha\"" in nextPage['content']:
+                        self.error("Naver returned a CAPTCHA.", False)
                         failed = True
 
                 if failed:
@@ -1336,7 +1431,7 @@ class SpiderFoot:
 
         if attempts == 3:
             return None
-        
+
         returnResults[seedUrl] = firstPage['content']
         pat = re.compile("(\/search;\S+b=\d+.[^\'\"]*)", re.IGNORECASE)
         matches = re.findall(pat, firstPage['content'])
@@ -1363,14 +1458,14 @@ class SpiderFoot:
             attempts = 0
             failed = False
             while attempts < 3:
-                nextPage = self.fetchUrl(nextUrl, timeout=opts['timeout'], 
+                nextPage = self.fetchUrl(nextUrl, timeout=opts['timeout'],
                                          useragent=opts['useragent'])
                 if nextPage['code'] == "403":
                     self.error("Yahoo doesn't like us any more..", False)
                     failed = True
 
                 if nextPage['content'] is None:
-                    self.error("Failed to fetch subsequent content from Yahoo.", 
+                    self.error("Failed to fetch subsequent content from Yahoo.",
                                False)
                     failed = True
 
@@ -1672,7 +1767,7 @@ class SpiderFootTarget(object):
                 # 2.1
                 if value == name:
                     return True
-                # 2.2            
+                # 2.2
                 if includeParents and name.endswith("." + value):
                     return True
                 # 2.3
@@ -1885,4 +1980,3 @@ class SpiderFootScanStatus:
 # Global variable accessed by various places to get the status of
 # running scans.
 globalScanStatus = SpiderFootScanStatus()
-

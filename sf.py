@@ -30,20 +30,20 @@ for mod in deps:
         else:
             __import__(mod)
     except ImportError as e:
-        print ""
-        print "Critical Start-up Failure: " + str(e)
-        print "================================="
-        print "It appears you are missing a module required for SpiderFoot"
-        print "to function. Please refer to the documentation for the list"
-        print "of dependencies and install them."
-        print ""
-        print "Python modules required are: "
+        print ("")
+        print ("Critical Start-up Failure: " + str(e))
+        print ("=================================")
+        print ("It appears you are missing a module required for SpiderFoot")
+        print ("to function. Please refer to the documentation for the list")
+        print ("of dependencies and install them.")
+        print ("")
+        print ("Python modules required are: ")
         for mod in deps:
-            print " - " + mod
-        print ""
-        print "If you are running on Windows and getting this error, please"
-        print "report this as a bug to support@spiderfoot.net."
-        print ""
+            print (" - " + mod)
+        print ("")
+        print ("If you are running on Windows and getting this error, please")
+        print ("report this as a bug to support@spiderfoot.net.")
+        print ("")
         sys.exit(-1)
 
 import os
@@ -84,7 +84,7 @@ sfOptdescs = {
     '_debug': "Enable debugging?",
     '_internettlds': "List of Internet TLDs.",
     '_internettlds_cache': "Hours to cache the Internet TLD list. This can safely be quite a long time given that the list doesn't change too often.",
-    '_useragent': "User-Agent string to use for HTTP requests. Prefix with an '@' to randomly select the User Agent from a file containing user agent strings for each request, e.g. @C:\useragents.txt or @/home/bob/useragents.txt. Or supply a URL to load the list from there.",
+    '_useragent': r"User-Agent string to use for HTTP requests. Prefix with an '@' to randomly select the User Agent from a file containing user agent strings for each request, e.g. @C:\useragents.txt or @/home/bob/useragents.txt. Or supply a URL to load the list from there.",
     '_dnsserver': "Override the default resolver with another DNS server. For example, 8.8.8.8 is Google's open DNS server.",
     '_fetchtimeout': "Number of seconds before giving up on a HTTP request.",
     '_socks1type': "SOCKS Server Type. Can be '4', '5', 'HTTP' or 'TOR'",
@@ -131,7 +131,7 @@ if __name__ == '__main__':
                 sfModules[modName]['optdescs'] = sfModules[modName]['object'].optdescs
 
     if len(sfModules.keys()) < 1:
-        print "No modules found in the modules directory."
+        print ("No modules found in the modules directory.")
         sys.exit(-1)
 
     # Add module info to sfConfig so it can be used by the UI
@@ -140,8 +140,8 @@ if __name__ == '__main__':
     sfConfig['__globaloptdescs__'] = sfOptdescs
 
     # Start the web server so you can start looking at results
-    print "Starting web server at http://" + sfConfig['__webaddr'] + \
-          ":" + str(sfConfig['__webport']) + sfConfig['__docroot'] + " ..."
+    print ("Starting web server at http://" + sfConfig['__webaddr'] + \
+          ":" + str(sfConfig['__webport']) + sfConfig['__docroot'] + " ...")
 
     cherrypy.config.update({
         'server.socket_host': sfConfig['__webaddr'],
@@ -164,11 +164,11 @@ if __name__ == '__main__':
         for line in pw.readlines():
             u, p = line.strip().split(":")
             if None in [u, p]:
-                print "Incorrect format of passwd file, must be username:password on each line."
+                print ("Incorrect format of passwd file, must be username:password on each line.")
                 sys.exit(-1)
             secrets[u] = p
 
-        print "Enabling authentication based on supplied passwd file."
+        print ("Enabling authentication based on supplied passwd file.")
         conf['/'] = {
             'tools.auth_digest.on': True,
             'tools.auth_digest.realm': sfConfig['__webaddr'],
@@ -178,7 +178,7 @@ if __name__ == '__main__':
 
     if os.path.isfile(sf.myPath() + '/spiderfoot.key') and \
        os.path.isfile(sf.myPath() + '/spiderfoot.crt'):
-        print "Enabling SSL based on supplied key and certificate file."
+        print ("Enabling SSL based on supplied key and certificate file.")
         cherrypy.server.ssl_module = 'builtin'
         cherrypy.server.ssl_certificate = sf.myPath() + '/spiderfoot.crt'
         cherrypy.server.ssl_private_key = sf.myPath() + '/spiderfoot.key'
